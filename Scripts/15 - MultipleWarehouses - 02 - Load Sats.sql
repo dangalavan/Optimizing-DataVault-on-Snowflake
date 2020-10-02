@@ -1,0 +1,90 @@
+
+	/*
+	 *  -- RESET
+	  
+	  TRUNCATE TABLE DATA_VAULT."PUBLIC".PART_S;
+	  TRUNCATE TABLE DATA_VAULT."PUBLIC".SUPPLIER_INVENTORY_S;
+	  TRUNCATE TABLE DATA_VAULT."PUBLIC".SUPPLIER_S;
+	 */
+
+	USE DATABASE SNOWFLAKE_SAMPLE_DATA;
+
+	USE SCHEMA TPCH_SF10;
+
+	SET REC_SRC = 'SNOWFLAKE_SAMPLE_DATABASE';
+
+-------------------------------------
+------- Supplier Sat
+-------------------------------------
+	USE WAREHOUSE WH_ETL_SATS; 
+
+
+	INSERT INTO DATA_VAULT."PUBLIC".SUPPLIER_S	(SUPPLIER_H_FK, LOAD_DTS, NAME, ADDRESS, PHONE, ACCTBAL, NATIONCODE, HASH_DIFF, REC_SRC)
+								
+	SELECT 	MD5(S.S_SUPPKEY) 		AS PK  -- Add preferred Hashing approach 
+			,CURRENT_TIMESTAMP() 	AS CT	
+
+			,S_NAME 
+			,S_ADDRESS 
+			,S_PHONE
+			,S_ACCTBAL 
+			,S_NATIONKEY 
+			
+			,MD5(S_NAME || S_ADDRESS || S_PHONE || S_ACCTBAL || S_NATIONKEY) HASH_DIFF -- Add preferred Hashing approach
+			,$REC_SRC				RS
+	FROM SUPPLIER S
+	WHERE HASH_DIFF NOT IN (SELECT HASH_DIFF FROM DATA_VAULT."PUBLIC".SUPPLIER_S)
+	;	
+	
+
+ --------------------------------
+ -- Part Sat
+ --------------------------------
+ 
+	INSERT INTO DATA_VAULT."PUBLIC".PART_S	(PART_H_FK, LOAD_DTS, PART_NAME, PART_MANUFACTURER, PART_BRAND, PART_TYPE, PART_SIZE, PART_CONTAINER, PART_RETAIL_PRICE,  HASH_DIFF, REC_SRC)
+	-- Source		
+	SELECT 	MD5(P.P_PARTKEY) AS PK 	-- Add preferred Hashing approach 
+			,CURRENT_TIMESTAMP() 	CT
+			
+			,P.P_NAME 
+			,P_MFGR 
+			,P_BRAND 
+			,P_TYPE 
+			,P_SIZE 
+			,P_CONTAINER 
+			,P_RETAILPRICE 
+			
+			,MD5(P.P_NAME || P_MFGR || P_BRAND || P_TYPE || P_SIZE || P_CONTAINER || P_RETAILPRICE ) HASH_DIFF -- Add preferred Hashing approach
+			,$REC_SRC				RS
+			--,'' RS
+	FROM PART P
+	WHERE HASH_DIFF NOT IN (SELECT HASH_DIFF FROM DATA_VAULT."PUBLIC".PART_S);
+
+
+
+ --------------------------------
+ ---- Inventory Sat
+ --------------------------------
+
+
+	INSERT INTO DATA_VAULT."PUBLIC".SUPPLIER_INVENTORY_S	(INVENTORY_H_PK, LOAD_DTS, SUPPLY_COST, AVAILABLE_QTY, PART_BK, SUPPLIER_BK, HASH_DIFF, REC_SRC)
+						
+	SELECT MD5(PS_PARTKEY || PS_SUPPKEY) 					AS INVENTORY_PK -- Add preferred Hashing approach
+			,CURRENT_TIMESTAMP() 							AS CT								
+
+			,PS_SUPPLYCOST				
+			,PS_AVAILQTY
+
+			,PS_PARTKEY
+			,PS_SUPPKEY
+			
+			,MD5(PS_AVAILQTY || PS_SUPPLYCOST) HASH_DIFF	-- Add preferred Hashing approach
+
+			,$REC_SRC				RS
+			--,'' RS
+	FROM PARTSUPP P
+	WHERE HASH_DIFF NOT IN (SELECT HASH_DIFF FROM DATA_VAULT."PUBLIC".SUPPLIER_INVENTORY_S)
+	;
+	
+
+
